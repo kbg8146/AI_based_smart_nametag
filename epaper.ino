@@ -2,18 +2,19 @@
 #include <WiFiUdp.h>
 #include <BLEDevice.h>
 #include <BLEScan.h>
+#include <BLEAdvertisedDevice.h>
 
-const char* ssid = "YOUR_WIFI_SSID";
-const char* password = "YOUR_WIFI_PASSWORD";
+const char* target_ssid = "T6";
+const char* target_password = "19941994";
 
-const char* udpAddress = "192.168.0.100";
+const char* udpAddress = "192.168.72.160";
 const int udpPort = 12345;
 
 WiFiUDP udp;
 BLEScan* pBLEScan;
 
 #define MAX_DEVICES 5
-#define SCAN_DURATION_MS 200
+#define SCAN_DURATION_MS 200 
 #define SCAN_REPEAT_COUNT 5
 
 struct BeaconData {
@@ -22,14 +23,50 @@ struct BeaconData {
     int rssi;
 };
 
-void setup() {
-    Serial.begin(115200);
-    WiFi.begin(ssid, password);
-    while (WiFi.status() != WL_CONNECTED) {
+void connectToTarget() {
+    Serial.printf("🔍 Scanning for \"%s\"...\n", target_ssid);
+    int n = WiFi.scanNetworks();
+
+    bool found = false;
+    for (int i = 0; i < n; ++i) {
+        String ssid = WiFi.SSID(i);
+        Serial.printf("  %d: %s (%ddBm)\n", i + 1, ssid.c_str(), WiFi.RSSI(i));
+        if (ssid == target_ssid) {
+            found = true;
+        }
+    }
+
+    if (!found) {
+        Serial.println("❌ Target SSID not found.");
+        return;
+    }
+
+    Serial.printf("✅ \"%s\" found! Connecting...\n", target_ssid);
+    WiFi.begin(target_ssid, target_password);
+
+    int attempts = 0;
+    while (WiFi.status() != WL_CONNECTED && attempts < 20) {
         delay(500);
         Serial.print(".");
+        attempts++;
     }
-    Serial.println("WiFi connected");
+
+    if (WiFi.status() == WL_CONNECTED) {
+        Serial.println("\n✅ WiFi connected!");
+        Serial.print("📡 IP address: ");
+        Serial.println(WiFi.localIP());
+    } else {
+        Serial.println("\n❌ Failed to connect.");
+    }
+}
+
+void setup() {
+    Serial.begin(115200);
+    WiFi.mode(WIFI_STA);
+    WiFi.disconnect(true);
+    delay(1000);
+
+    connectToTarget();
 
     BLEDevice::init("");
     pBLEScan = BLEDevice::getScan();
@@ -37,19 +74,37 @@ void setup() {
 }
 
 void loop() {
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("❗ WiFi disconnected. Trying again...");
+        connectToTarget();
+        delay(3000);
+        return;
+    }
+
     for (int round = 0; round < SCAN_REPEAT_COUNT; round++) {
         BeaconData beacons[MAX_DEVICES];
         int beaconCount = 0;
 
-        BLEScanResults results = pBLEScan->start(SCAN_DURATION_MS / 1000, false);
+        Serial.printf("📡 BLE scanning (%d/%d)...\n", round + 1, SCAN_REPEAT_COUNT);
+        BLEScanResults* results = pBLEScan->start(SCAN_DURATION_MS / 1000, false);
+        Serial.printf("📦 Found %d BLE devices\n", results->getCount());
 
-        for (int i = 0; i < results.getCount() && beaconCount < MAX_DEVICES; i++) {
-            BLEAdvertisedDevice d = results.getDevice(i);
-            BeaconData data;
-            data.name = d.getName().c_str();
-            data.address = d.getAddress().toString().c_str();
-            data.rssi = d.getRSSI();
-            beacons[beaconCount++] = data;
+        for (int i = 0; i < results->getCount() && beaconCount < MAX_DEVICES; i++) {
+            BLEAdvertisedDevice d = results->getDevice(i);
+
+            if (d.haveName()) {
+                String devName = String(d.getName().c_str());
+
+                if (devName.startsWith("Beacon")) {
+                    Serial.println("🔖 " + devName);  // 이름만 출력
+
+                    BeaconData data;
+                    data.name = devName;
+                    data.address = d.getAddress().toString().c_str();
+                    data.rssi = d.getRSSI();
+                    beacons[beaconCount++] = data;
+                }
+            }
         }
 
         // JSON 생성
@@ -64,16 +119,18 @@ void loop() {
         }
         payload += "}";
 
-        // UDP 송신
-        Serial.println("Sending: " + payload);
-        udp.beginPacket(udpAddress, udpPort);
-        udp.print(payload);
-        udp.endPacket();
+        if (beaconCount > 0) {
+            Serial.println("📤 Sending: " + payload);  // 전송 확인
+            udp.beginPacket(udpAddress, udpPort);
+            udp.print(payload);
+            udp.endPacket();
+        } else {
+            Serial.println("⚠️ No matching Beacon* devices found.");
+        }
 
-        // 다음 라운드까지 대기
         delay(200);
-        pBLEScan->clearResults();  // 메모리 정리
+        pBLEScan->clearResults();
     }
 
-    delay(5000);  // 5회 송신 후 다음 루프까지 대기 (옵션)
+    delay(5000);
 }
