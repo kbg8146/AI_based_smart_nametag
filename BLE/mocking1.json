@@ -1,0 +1,7 @@
+{
+    "beacon1": {"name": "Beacon-A", "address": "AA:BB:CC:11:22:33", "rssi": -30},
+    "beacon2": {"name": "Beacon-B", "address": "AA:BB:CC:11:22:34", "rssi": -45},
+    "beacon3": {"name": "Beacon-C", "address": "AA:BB:CC:11:22:35", "rssi": -70},
+    "beacon4": {"name": "Beacon-D", "address": "AA:BB:CC:11:22:36", "rssi": -95},
+    "beacon5": {"name": "Beacon-E", "address": "AA:BB:CC:11:22:37", "rssi": -80}
+}
