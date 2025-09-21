@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ user.name }}님의 명함</title>
+</head>
+<body>
+    <h1>{{ user.name }}</h1>
+    <p><strong>학교:</strong> {{ user.school }}</p>
+    <p><strong>학년:</strong> {{ user.year }}</p>
+    <p><strong>전공:</strong> {{ user.major }}</p>
+    <p><strong>이메일:</strong> {{ user.email }}</p>
+    <p><strong>추천 산업군:</strong> {{ user.top_industries }}</p>
+
+<script>
+(function () {
+  // 서버에서 내려준 토큰
+  const token = "{{ user.token | e }}";
+  if (!token) return;
+
+  fetch("/u/" + encodeURIComponent(token) + "/touch", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      source: document.referrer || "",
+      campaign: "event-2025"
+    })
+  }).catch(()=>{ /* 네트워크 실패 무시 */ });
+})();
+</script>
+
+</body>
+</html>
