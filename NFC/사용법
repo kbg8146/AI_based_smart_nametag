@@ -1,0 +1,6 @@
+google sheet API KEY 필요
+
+1. $env:SERVICE_ACCOUNT_FILE = "API key 주소.json"
+2. $env:ADMIN_KEY = "관리자_키"
+3. uvicorn nfc_server:app --host 0.0.0.0 --port 8000 --reload
+4. cloudflared tunnel --url http://localhost:8000
